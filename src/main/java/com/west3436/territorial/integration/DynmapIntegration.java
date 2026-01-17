@@ -1,0 +1,610 @@
+package com.west3436.territorial.integration;
+
+import com.west3436.territorial.Config;
+import com.west3436.territorial.TerritorialMod;
+import com.west3436.territorial.config.PlantGrowthConfig;
+import com.west3436.territorial.config.AnimalBreedingConfig;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
+import org.slf4j.Logger;
+
+import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
+/**
+ * Integration with Dynmap for visualizing rule regions on the dynamic map.
+ * Creates polygons on the map showing where plant growth and animal breeding
+ * rules are active, with descriptions in popup textboxes.
+ *
+ * <p>This integration uses reflection to avoid compile-time dependency on Dynmap.
+ * If Dynmap is not present at runtime, the integration gracefully degrades.</p>
+ */
+public class DynmapIntegration {
+    private static final Logger LOGGER = TerritorialMod.LOGGER;
+
+    // Marker set IDs
+    private static final String MARKER_SET_ID = "territorial.rules";
+    private static final String MARKER_SET_LABEL = "Territorial Rules";
+
+    // Color schemes for different rule types (ARGB format)
+    private static final int COLOR_PLANT_GROWTH_ALLOW = 0x00FF00;    // Green
+    private static final int COLOR_PLANT_GROWTH_DENY = 0xFF0000;     // Red
+    private static final int COLOR_ANIMAL_BREEDING_ALLOW = 0x0000FF; // Blue
+    private static final int COLOR_ANIMAL_BREEDING_DENY = 0xFF8800;  // Orange
+    
+    private Object dynmapAPI;
+    private Object markerAPI;
+    private Object markerSet;
+    private Map<String, Object> activeMarkers = new HashMap<>();
+    
+    private boolean initialized = false;
+    private boolean apiAvailable = false;
+    
+    // Cached interface classes to avoid repeated lookups and to ensure we invoke
+    // methods on interfaces (not implementation classes) for cross-module access
+    private Class<?> markerSetInterface;
+    private Class<?> areaMarkerInterface;
+    private Class<?> dynmapCommonAPIInterface;
+    
+    // Cached method references to avoid repeated reflection lookups
+    private Method deleteMarkerMethod;
+    
+    // Server level name for Dynmap world name resolution
+    // This is set when the server starts and used to resolve the correct Dynmap world name
+    // Marked volatile for thread safety since it's set during server startup and read during marker operations
+    private static volatile String serverLevelName = null;
+    
+    /**
+     * Sets the server level name for Dynmap world name resolution.
+     * This should be called when the Minecraft server starts.
+     * 
+     * @param levelName The server's level name (typically from ServerLevel.getLevelData().getLevelName())
+     */
+    public static void setServerLevelName(String levelName) {
+        if (levelName != null && !levelName.isEmpty()) {
+            serverLevelName = levelName;
+            TerritorialMod.LOGGER.info("Set server level name for Dynmap integration: {}", levelName);
+        } else {
+            TerritorialMod.LOGGER.warn("Invalid server level name provided, using default 'world'");
+            serverLevelName = "world";
+        }
+    }
+    
+    /**
+     * Initializes the Dynmap integration.
+     * Sets up marker API and creates marker set for rule visualization.
+     */
+    public void initialize() {
+        if (!Config.enableDynmapIntegration) {
+            LOGGER.info("Dynmap integration is disabled in config");
+            return;
+        }
+        
+        try {
+            // Use reflection to get Dynmap API
+            Class<?> dynmapAPIClass = Class.forName("org.dynmap.DynmapCommonAPI");
+            Class<?> listenerClass = Class.forName("org.dynmap.DynmapCommonAPIListener");
+            
+            // DynmapCommonAPIListener is an abstract class, not an interface,
+            // so we cannot use Proxy.newProxyInstance. Instead, we use ASM to
+            // dynamically generate a concrete subclass at runtime.
+            Object listener = createDynmapListener(listenerClass, this::onDynmapAPIEnabled);
+            
+            // Register the listener
+            Method registerMethod = listenerClass.getMethod("register", listenerClass);
+            registerMethod.invoke(null, listener);
+            
+            LOGGER.info("Dynmap API listener registered");
+            
+        } catch (ClassNotFoundException e) {
+            LOGGER.debug("Dynmap classes not found - integration will not be available");
+            initialized = false;
+        } catch (Exception e) {
+            LOGGER.error("Failed to initialize Dynmap integration", e);
+            initialized = false;
+        }
+    }
+    
+    /**
+     * Callback holder for the dynamically generated listener class.
+     * This static field is accessed by the generated bytecode to invoke the callback.
+     * Access is synchronized via listenerCreationLock.
+     * Must be public to allow access from the dynamically generated class loaded in a different module.
+     */
+    public static Consumer<Object> apiEnabledCallback;
+    
+    /**
+     * Lock object for synchronizing listener creation to prevent race conditions.
+     */
+    private static final Object listenerCreationLock = new Object();
+    
+    /**
+     * Creates a dynamic subclass of DynmapCommonAPIListener using ASM bytecode generation.
+     * This is necessary because DynmapCommonAPIListener is an abstract class, not an interface,
+     * so Java's Proxy.newProxyInstance cannot be used.
+     * 
+     * @param listenerClass the DynmapCommonAPIListener class loaded via reflection
+     * @param callback the callback to invoke when apiEnabled is called
+     * @return an instance of the dynamically generated listener subclass
+     */
+    private Object createDynmapListener(Class<?> listenerClass, Consumer<Object> callback) throws Exception {
+        synchronized (listenerCreationLock) {
+            // Store the callback in a static field that the generated class can access
+            apiEnabledCallback = callback;
+            
+            String listenerInternalName = Type.getInternalName(listenerClass);
+            String generatedClassName = "com/west3436/territorial/integration/DynmapListenerImpl";
+            String integrationInternalName = "com/west3436/territorial/integration/DynmapIntegration";
+            
+            ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+            
+            // Define the class: public class DynmapListenerImpl extends DynmapCommonAPIListener
+            // Using V17 as this mod targets Minecraft 1.20.1 which requires Java 17
+            cw.visit(
+                Opcodes.V17,
+                Opcodes.ACC_PUBLIC,
+                generatedClassName,
+                null,
+                listenerInternalName,
+                null
+            );
+            
+            // Generate default constructor: public DynmapListenerImpl() { super(); }
+            MethodVisitor constructor = cw.visitMethod(
+                Opcodes.ACC_PUBLIC,
+                "<init>",
+                "()V",
+                null,
+                null
+            );
+            constructor.visitCode();
+            constructor.visitVarInsn(Opcodes.ALOAD, 0);
+            constructor.visitMethodInsn(Opcodes.INVOKESPECIAL, listenerInternalName, "<init>", "()V", false);
+            constructor.visitInsn(Opcodes.RETURN);
+            constructor.visitMaxs(1, 1);
+            constructor.visitEnd();
+            
+            // Generate apiEnabled method: public void apiEnabled(DynmapCommonAPI api)
+            // This method calls DynmapIntegration.apiEnabledCallback.accept(api)
+            MethodVisitor apiEnabled = cw.visitMethod(
+                Opcodes.ACC_PUBLIC,
+                "apiEnabled",
+                "(Lorg/dynmap/DynmapCommonAPI;)V",
+                null,
+                null
+            );
+            apiEnabled.visitCode();
+            
+            // Get the static callback field: DynmapIntegration.apiEnabledCallback
+            apiEnabled.visitFieldInsn(
+                Opcodes.GETSTATIC,
+                integrationInternalName,
+                "apiEnabledCallback",
+                "Ljava/util/function/Consumer;"
+            );
+            
+            // Load the api parameter
+            apiEnabled.visitVarInsn(Opcodes.ALOAD, 1);
+            
+            // Call callback.accept(api)
+            apiEnabled.visitMethodInsn(
+                Opcodes.INVOKEINTERFACE,
+                "java/util/function/Consumer",
+                "accept",
+                "(Ljava/lang/Object;)V",
+                true
+            );
+            
+            apiEnabled.visitInsn(Opcodes.RETURN);
+            apiEnabled.visitMaxs(2, 2);
+            apiEnabled.visitEnd();
+            
+            cw.visitEnd();
+            
+            // Load the generated class using a custom class loader
+            byte[] bytecode = cw.toByteArray();
+            Class<?> generatedClass = new DynamicClassLoader(listenerClass.getClassLoader())
+                .defineClass(generatedClassName.replace('/', '.'), bytecode);
+            
+            // Create and return an instance
+            return generatedClass.getDeclaredConstructor().newInstance();
+        }
+    }
+    
+    /**
+     * Custom class loader for loading dynamically generated classes.
+     */
+    private static class DynamicClassLoader extends ClassLoader {
+        DynamicClassLoader(ClassLoader parent) {
+            super(parent);
+        }
+        
+        Class<?> defineClass(String name, byte[] bytecode) {
+            return defineClass(name, bytecode, 0, bytecode.length);
+        }
+    }
+    
+    /**
+     * Called when Dynmap API becomes available.
+     */
+    @SuppressWarnings("unchecked")
+    private void onDynmapAPIEnabled(Object api) {
+        try {
+            dynmapAPI = api;
+            
+            // Load interface classes for cross-module reflection access
+            // Using interfaces instead of implementation classes avoids IllegalAccessException
+            // when Java module system restricts access to impl classes
+            markerSetInterface = Class.forName("org.dynmap.markers.MarkerSet");
+            areaMarkerInterface = Class.forName("org.dynmap.markers.AreaMarker");
+            dynmapCommonAPIInterface = Class.forName("org.dynmap.DynmapCommonAPI");
+            
+            // Cache method references to avoid repeated reflection lookups
+            // Use interface classes to avoid NoSuchMethodException on impl classes
+            deleteMarkerMethod = areaMarkerInterface.getMethod("deleteMarker");
+            
+            // Get MarkerAPI using interface
+            Method getMarkerAPIMethod = dynmapCommonAPIInterface.getMethod("getMarkerAPI");
+            markerAPI = getMarkerAPIMethod.invoke(api);
+            
+            if (markerAPI != null) {
+                setupMarkerSet();
+                updateMarkers();
+                initialized = true;
+                apiAvailable = true;
+                LOGGER.info("Dynmap integration initialized successfully");
+            } else {
+                LOGGER.warn("Dynmap MarkerAPI is not available");
+            }
+        } catch (Exception e) {
+            LOGGER.error("Failed to enable Dynmap API", e);
+        }
+    }
+    
+    /**
+     * Sets up the marker set for Territorial rules.
+     */
+    private void setupMarkerSet() {
+        try {
+            // Get or create marker set
+            Method getMarkerSetMethod = markerAPI.getClass().getMethod("getMarkerSet", String.class);
+            markerSet = getMarkerSetMethod.invoke(markerAPI, MARKER_SET_ID);
+            
+            if (markerSet == null) {
+                // Create new marker set
+                Method createMarkerSetMethod = markerAPI.getClass().getMethod(
+                    "createMarkerSet", String.class, String.class, java.util.Set.class, boolean.class
+                );
+                markerSet = createMarkerSetMethod.invoke(markerAPI, MARKER_SET_ID, MARKER_SET_LABEL, null, false);
+                LOGGER.debug("Created new marker set: {}", MARKER_SET_ID);
+            } else {
+                // Clear existing markers
+                clearAllMarkers();
+                LOGGER.debug("Using existing marker set: {}", MARKER_SET_ID);
+            }
+            
+            if (markerSet != null) {
+                // Configure marker set using interface class to avoid IllegalAccessException
+                // when accessing impl class methods across modules
+                Method setHideByDefaultMethod = markerSetInterface.getMethod("setHideByDefault", boolean.class);
+                setHideByDefaultMethod.invoke(markerSet, false);
+                
+                Method setMinZoomMethod = markerSetInterface.getMethod("setMinZoom", int.class);
+                setMinZoomMethod.invoke(markerSet, 0);
+                
+                Method setLayerPriorityMethod = markerSetInterface.getMethod("setLayerPriority", int.class);
+                setLayerPriorityMethod.invoke(markerSet, 10);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Failed to setup marker set", e);
+        }
+    }
+    
+    /**
+     * Updates all markers based on current configuration rules.
+     */
+    public void updateMarkers() {
+        if (!initialized || markerSet == null) {
+            LOGGER.debug("Cannot update markers - Dynmap not initialized or marker set is null");
+            return;
+        }
+         
+        LOGGER.info("Updating Dynmap markers for Territorial rules");
+        
+        // Clear existing markers before adding new ones
+        clearAllMarkers();
+        
+        int markerCount = 0;
+        
+        // Add plant growth rule markers
+        List<PlantGrowthConfig> plantRules = Config.getPlantGrowthRules();
+        for (int i = 0; i < plantRules.size(); i++) {
+            PlantGrowthConfig rule = plantRules.get(i);
+            if (rule.isEnabled() && hasCoordinateBounds(rule)) {
+                createMarkerForPlantGrowthRule(rule, i);
+                markerCount++;
+            }
+        }
+        
+        // Add animal breeding rule markers
+        List<AnimalBreedingConfig> animalRules = Config.getAnimalBreedingRules();
+        for (int i = 0; i < animalRules.size(); i++) {
+            AnimalBreedingConfig rule = animalRules.get(i);
+            if (rule.isEnabled() && hasCoordinateBounds(rule)) {
+                createMarkerForAnimalBreedingRule(rule, i);
+                markerCount++;
+            }
+        }
+
+        LOGGER.info("Created {} Dynmap markers for Territorial rules", markerCount);
+    }
+    
+    /**
+     * Checks if a rule has coordinate bounds defined (required for polygon rendering).
+     */
+    private boolean hasCoordinateBounds(PlantGrowthConfig rule) {
+        return rule.getXMin() != null && rule.getXMax() != null 
+            && rule.getZMin() != null && rule.getZMax() != null;
+    }
+    
+    /**
+     * Checks if a rule has coordinate bounds defined (required for polygon rendering).
+     */
+    private boolean hasCoordinateBounds(AnimalBreedingConfig rule) {
+        return rule.getXMin() != null && rule.getXMax() != null
+            && rule.getZMin() != null && rule.getZMax() != null;
+    }
+
+    /**
+     * Creates a polygon marker for a plant growth rule.
+     */
+    private void createMarkerForPlantGrowthRule(PlantGrowthConfig rule, int index) {
+        String markerId = "plant_growth_" + index;
+        String label = "Plant Growth: " + (rule.isAllow() ? "Allowed" : "Blocked");
+        
+        // Build description
+        StringBuilder description = new StringBuilder();
+        description.append("<b>Plant Growth Rule</b><br>");
+        description.append("<b>Action:</b> ").append(rule.isAllow() ? "Allow" : "Deny").append("<br>");
+        
+        if (rule.getCropTypes() != null && !rule.getCropTypes().isEmpty()) {
+            description.append("<b>Crops:</b> ").append(String.join(", ", rule.getCropTypes())).append("<br>");
+        }
+        
+        addCommonDescription(description, rule.getBiomes(), rule.getTemperatureMin(), rule.getTemperatureMax(),
+                rule.getXMin(), rule.getXMax(), rule.getZMin(), rule.getZMax(), rule.getDimensions(), rule.getDimensionsBlacklist());
+        
+        int color = rule.isAllow() ? COLOR_PLANT_GROWTH_ALLOW : COLOR_PLANT_GROWTH_DENY;
+        createAreaMarker(markerId, label, description.toString(), 
+                rule.getXMin(), rule.getXMax(), rule.getZMin(), rule.getZMax(), 
+                rule.getDimensions(), color);
+    }
+    
+    /**
+     * Creates a polygon marker for an animal breeding rule.
+     */
+    private void createMarkerForAnimalBreedingRule(AnimalBreedingConfig rule, int index) {
+        String markerId = "animal_breeding_" + index;
+        String label = "Animal Breeding: " + (rule.isAllow() ? "Allowed" : "Blocked");
+
+        // Build description
+        StringBuilder description = new StringBuilder();
+        description.append("<b>Animal Breeding Rule</b><br>");
+        description.append("<b>Action:</b> ").append(rule.isAllow() ? "Allow" : "Deny").append("<br>");
+
+        if (rule.getAnimalTypes() != null && !rule.getAnimalTypes().isEmpty()) {
+            description.append("<b>Animals:</b> ").append(String.join(", ", rule.getAnimalTypes())).append("<br>");
+        }
+
+        addCommonDescription(description, rule.getBiomes(), rule.getTemperatureMin(), rule.getTemperatureMax(),
+                rule.getXMin(), rule.getXMax(), rule.getZMin(), rule.getZMax(), rule.getDimensions(), rule.getDimensionsBlacklist());
+
+        int color = rule.isAllow() ? COLOR_ANIMAL_BREEDING_ALLOW : COLOR_ANIMAL_BREEDING_DENY;
+        createAreaMarker(markerId, label, description.toString(),
+                rule.getXMin(), rule.getXMax(), rule.getZMin(), rule.getZMax(),
+                rule.getDimensions(), color);
+    }
+
+    /**
+     * Adds biome and coordinate information to description.
+     */
+    private void addCommonDescription(StringBuilder description, List<String> biomes, 
+            Float tempMin, Float tempMax, Integer xMin, Integer xMax, 
+            Integer zMin, Integer zMax, List<String> dimensions, List<String> dimensionsBlacklist) {
+        
+        if (biomes != null && !biomes.isEmpty()) {
+            description.append("<b>Biomes:</b> ").append(String.join(", ", biomes)).append("<br>");
+        }
+        
+        if (tempMin != null || tempMax != null) {
+            description.append("<b>Temperature:</b> ");
+            if (tempMin != null) description.append(tempMin).append(" to ");
+            if (tempMax != null) description.append(tempMax);
+            description.append("<br>");
+        }
+        
+        if (xMin != null && xMax != null && zMin != null && zMax != null) {
+            description.append("<b>Coordinates:</b> X: ").append(xMin).append(" to ").append(xMax)
+                    .append(", Z: ").append(zMin).append(" to ").append(zMax).append("<br>");
+        }
+        
+        if (dimensions != null && !dimensions.isEmpty()) {
+            description.append("<b>Dimensions:</b> ").append(String.join(", ", dimensions)).append("<br>");
+        } else if (dimensionsBlacklist != null && !dimensionsBlacklist.isEmpty()) {
+            description.append("<b>Excluded Dimensions:</b> ").append(String.join(", ", dimensionsBlacklist)).append("<br>");
+        }
+    }
+    
+    /**
+     * Creates an area marker (polygon) on the Dynmap using reflection.
+     */
+    private void createAreaMarker(String markerId, String label, String description,
+            Integer xMin, Integer xMax, Integer zMin, Integer zMax, List<String> dimensions, int color) {
+        
+        try {
+            // Define rectangle corners
+            double[] x = new double[] {
+                xMin.doubleValue(), xMax.doubleValue(), xMax.doubleValue(), xMin.doubleValue()
+            };
+            double[] z = new double[] {
+                zMin.doubleValue(), zMin.doubleValue(), zMax.doubleValue(), zMax.doubleValue()
+            };
+            
+            // Determine world name from dimension using Dynmap's available worlds
+            // NOTE: Dynmap limitation - only shows markers in one dimension per rule.
+            // For multi-dimension whitelists, only the first dimension is visualized.
+            // Blacklisted dimensions are not represented on the map.
+            // The popup description will show the complete dimension filtering.
+            String world = resolveDynmapWorldName(dimensions);
+            
+            // Create area marker using interface class to avoid IllegalAccessException
+            // when accessing impl class methods across modules
+            Method createAreaMarkerMethod = markerSetInterface.getMethod(
+                "createAreaMarker",
+                String.class,      // id
+                String.class,      // label
+                boolean.class,     // markup
+                String.class,      // world
+                double[].class,    // x coords
+                double[].class,    // z coords
+                boolean.class      // persistent
+            );
+            
+            Object marker = createAreaMarkerMethod.invoke(
+                markerSet,
+                markerId,
+                label,
+                false,  // markup - false means plain HTML
+                world,  // world name
+                x,      // x coordinates
+                z,      // z coordinates
+                false   // persistent
+            );
+            
+            if (marker != null) {
+                // Use interface classes to avoid IllegalAccessException
+                // when accessing impl class methods across modules
+                
+                // Set fill style (semi-transparent)
+                Method setFillStyleMethod = areaMarkerInterface.getMethod("setFillStyle", double.class, int.class);
+                setFillStyleMethod.invoke(marker, 0.35, color);
+                
+                // Set line style (border)
+                Method setLineStyleMethod = areaMarkerInterface.getMethod("setLineStyle", int.class, double.class, int.class);
+                setLineStyleMethod.invoke(marker, 2, 0.8, color);
+                
+                // Set description (shows in popup) - inherited from MarkerDescription interface
+                // which AreaMarker extends, so we can get it from areaMarkerInterface
+                Method setDescriptionMethod = areaMarkerInterface.getMethod("setDescription", String.class);
+                setDescriptionMethod.invoke(marker, description);
+                
+                // Store marker reference
+                activeMarkers.put(markerId, marker);
+                
+                LOGGER.debug("Created area marker: {} at ({},{}) to ({},{})", 
+                        markerId, xMin, zMin, xMax, zMax);
+            }
+            
+        } catch (Exception e) {
+            LOGGER.error("Failed to create area marker: {}", markerId, e);
+        }
+    }
+    
+    /**
+     * Resolves the correct Dynmap world name from dimension configuration.
+     * 
+     * <p>Dynmap uses specific world naming conventions:
+     * <ul>
+     *   <li>Overworld: Uses the server's level name (e.g., "world", "minecraftworld", etc.)</li>
+     *   <li>Nether: Typically "DIM-1"</li>
+     *   <li>End: Typically "DIM1"</li>
+     * </ul>
+     * </p>
+     * 
+     * <p>The server level name is obtained from the Minecraft server during startup
+     * and used for overworld markers. For nether and end, Dynmap's standard naming
+     * conventions are used.</p>
+     * 
+     * @param dimensions List of dimension IDs from the rule configuration
+     * @return The Dynmap world name to use for markers
+     */
+    private String resolveDynmapWorldName(List<String> dimensions) {
+        // Get the base world name - use server level name if available, otherwise default to "world"
+        String overworldName = (serverLevelName != null && !serverLevelName.isEmpty()) 
+                ? serverLevelName : "world";
+        
+        // If no dimensions specified, use the overworld name
+        if (dimensions == null || dimensions.isEmpty()) {
+            LOGGER.debug("No dimensions specified, using overworld: {}", overworldName);
+            return overworldName;
+        }
+        
+        String dimension = dimensions.get(0);
+        String dimensionName = dimension.replace("minecraft:", "");
+        
+        // Handle overworld
+        if (dimension.equals("minecraft:overworld") || dimensionName.equals("overworld")) {
+            LOGGER.debug("Resolved overworld to: {}", overworldName);
+            return overworldName;
+        }
+        
+        // Handle nether - Dynmap typically uses "DIM-1" for vanilla nether
+        if (dimensionName.equals("the_nether") || dimensionName.equals("nether")) {
+            LOGGER.debug("Resolved nether to: DIM-1");
+            return "DIM-1";
+        }
+        
+        // Handle end - Dynmap typically uses "DIM1" for vanilla end
+        if (dimensionName.equals("the_end") || dimensionName.equals("end")) {
+            LOGGER.debug("Resolved end to: DIM1");
+            return "DIM1";
+        }
+        
+        // For custom dimensions, use the dimension name without namespace
+        LOGGER.debug("Using custom dimension name: {}", dimensionName);
+        return dimensionName;
+    }
+    
+    /**
+     * Clears all active markers from the map.
+     */
+    private void clearAllMarkers() {
+        try {
+            if (deleteMarkerMethod == null) {
+                LOGGER.debug("Cannot clear markers - deleteMarkerMethod not initialized");
+                activeMarkers.clear();
+                return;
+            }
+            
+            for (Object marker : activeMarkers.values()) {
+                deleteMarkerMethod.invoke(marker);
+            }
+            activeMarkers.clear();
+            LOGGER.debug("Cleared all Dynmap markers");
+        } catch (Exception e) {
+            LOGGER.error("Failed to clear markers", e);
+        }
+    }
+    
+    /**
+     * Cleans up and removes all markers.
+     */
+    public void shutdown() {
+        if (initialized && markerSet != null) {
+            clearAllMarkers();
+            LOGGER.info("Dynmap integration shut down");
+        }
+    }
+    
+    /**
+     * Checks if Dynmap integration is initialized and available.
+     */
+    public boolean isAvailable() {
+        return initialized && apiAvailable;
+    }
+}

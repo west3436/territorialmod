@@ -1,0 +1,126 @@
+# Territorial Mod - Event Control Configuration
+# 
+# This file allows you to configure where certain game events can occur based on:
+# - Biome types (specific biome IDs)
+# - Biome temperatures (temperature ranges)
+# - Coordinates (x/y/z coordinate ranges)
+# - Dimensions (specific dimension IDs)
+#
+# By default, all events are ALLOWED everywhere. Add rules below to restrict events.
+#
+# IMPORTANT: This file is a reference/example. The actual rules should be configured
+# using TOML format in separate configuration files. This will be fully implemented
+# in Phase 1.3 (Configuration Parser).
+#
+# Configuration File Structure (TOML format):
+# 
+# [plant_growth]
+#     [[plant_growth.rules]]
+#         enabled = true
+#         biomes = ["minecraft:desert", "minecraft:badlands"]
+#         temperature_min = 0.5
+#         temperature_max = 2.0
+#         x_min = -1000
+#         x_max = 1000
+#         y_min = 60
+#         y_max = 120
+#         z_min = -1000
+#         z_max = 1000
+#         crop_types = ["minecraft:wheat", "minecraft:carrots"]
+#         allow = false  # false = block growth, true = allow growth
+#
+# [animal_breeding]
+#     [[animal_breeding.rules]]
+#         enabled = true
+#         biomes = ["minecraft:plains", "minecraft:forest"]
+#         animal_types = ["minecraft:cow", "minecraft:sheep"]
+#         allow = true
+#
+# [mineral_veins]
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         vein_types = ["copper", "iron"]
+#         biomes = ["minecraft:mountains"]
+#         integration = "immersive_engineering"  # or "create"
+#         allow = true
+#
+# Field Descriptions:
+#
+# enabled (boolean)         - Whether this rule is active
+# allow (boolean)           - true = allow event, false = block event
+# biomes (list of strings)  - Biome IDs (e.g., "minecraft:desert", "minecraft:plains")
+# temperature_min (float)   - Minimum biome temperature (-2.0 to 2.0)
+# temperature_max (float)   - Maximum biome temperature (-2.0 to 2.0)
+# x_min, x_max (integer)    - X coordinate range (inclusive)
+# y_min, y_max (integer)    - Y coordinate range (inclusive)
+# z_min, z_max (integer)    - Z coordinate range (inclusive)
+# dimension (string)        - Dimension ID (e.g., "minecraft:overworld", "minecraft:the_nether")
+# crop_types (list)         - Crop types for plant growth rules
+# animal_types (list)       - Animal types for breeding rules
+# vein_types (list)         - Vein/ore types for mineral rules
+# integration (string)      - "immersive_engineering" or "create" for mineral rules
+#
+# Rule Precedence:
+# - More specific rules override general rules
+# - Coordinate restrictions > Temperature restrictions > Biome restrictions
+# - Explicit deny overrides explicit allow at the same specificity level
+# - If no rules match, the event is ALLOWED by default
+#
+# Examples:
+#
+# Example 1: Prevent wheat growth in hot biomes (temperature > 1.0)
+# [[plant_growth.rules]]
+#     enabled = true
+#     temperature_min = 1.0
+#     crop_types = ["minecraft:wheat"]
+#     allow = false
+#
+# Example 2: Prevent animal breeding above Y=150
+# [[animal_breeding.rules]]
+#     enabled = true
+#     y_min = 150
+#     allow = false
+#
+# Example 3: Only allow copper veins in mountain biomes (Immersive Engineering)
+# [[mineral_veins.rules]]
+#     enabled = true
+#     vein_types = ["copper"]
+#     biomes = ["minecraft:mountains"]
+#     integration = "immersive_engineering"
+#     allow = true
+#
+# Example 4: Block all crop growth in a specific coordinate region
+# [[plant_growth.rules]]
+#     enabled = true
+#     x_min = 0
+#     x_max = 1000
+#     z_min = 0
+#     z_max = 1000
+#     allow = false
+#
+# Note: Full configuration parser and loader will be implemented in Phase 1.3
+# This file serves as documentation for the configuration format.
+#
+# Dynmap Integration:
+#
+# If you have Dynmap-Forge installed, Territorial can automatically visualize
+# your rules on the dynamic map as colored polygons.
+#
+# - Rules with coordinate bounds (x_min, x_max, z_min, z_max) appear as regions
+# - Click regions on the map to see rule details in a popup
+# - Color scheme:
+#   * GREEN   = Plant growth allowed
+#   * RED     = Plant growth denied
+#   * BLUE    = Animal breeding allowed
+#   * ORANGE  = Animal breeding denied
+#   * YELLOW  = Mineral veins allowed
+#   * PURPLE  = Mineral veins denied
+#
+# To enable Dynmap integration:
+# 1. Install Dynmap-Forge (https://www.curseforge.com/minecraft/mc-mods/dynmapforge)
+# 2. Ensure enableDynmapIntegration = true in config/territorial-common.toml
+# 3. Rules automatically appear on the map
+# 4. Use /territorial reload to refresh markers after config changes
+#
+# Note: Only rules with coordinate bounds are shown on the map.
+# Biome-only or temperature-only rules work in-game but don't appear on Dynmap.

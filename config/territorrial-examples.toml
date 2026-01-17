@@ -1,0 +1,576 @@
+# Territorial - Example Configuration Scenarios
+#
+# This file contains example configurations for common use cases.
+# Copy the examples you want to use into config/territorial-rules.toml
+#
+# DO NOT rename this file to territorial-rules.toml as it contains multiple
+# conflicting examples. Pick the scenarios you want and copy them to your
+# actual configuration file.
+
+# ==============================================================================
+# SCENARIO 1: Biome-Realistic Farming
+# ==============================================================================
+# Make crops require appropriate climate conditions similar to real life
+#
+# Wheat: Temperate climates (0.2-0.9)
+# Melons: Warm climates (0.8+)
+# Potatoes: Cool climates (0.0-0.6)
+# Cactus: Hot/dry (deserts only)
+# Carrots: Temperate forests
+
+# [plant_growth]
+#     # Wheat in temperate zones
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:wheat"]
+#         temperature_min = 0.2
+#         temperature_max = 0.9
+#         allow = true
+#     
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:wheat"]
+#         allow = false
+#     
+#     # Melons in warm climates
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:melon"]
+#         temperature_min = 0.8
+#         allow = true
+#     
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:melon"]
+#         allow = false
+#     
+#     # Potatoes in cool climates
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:potato"]
+#         temperature_max = 0.6
+#         allow = true
+#     
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:potato"]
+#         allow = false
+#     
+#     # Cactus in desert only
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:cactus"]
+#         biomes = ["minecraft:desert", "minecraft:badlands"]
+#         allow = true
+#     
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:cactus"]
+#         allow = false
+#     
+#     # Carrots in forests
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:carrot"]
+#         biomes = ["minecraft:forest", "minecraft:birch_forest", "minecraft:dark_forest"]
+#         allow = true
+#     
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:carrot"]
+#         allow = false
+
+# ==============================================================================
+# SCENARIO 2: Regional Resource Control (RPG Server)
+# ==============================================================================
+# Create distinct regions with different resources available
+# Encourages trade and player interaction
+#
+# Zone 1 (Farming): 0-2000, 0-2000 - Crops allowed
+# Zone 2 (Mining): 3000-5000, 3000-5000 - Mineral veins allowed
+# Zone 3 (Ranching): -2000-0, -2000-0 - Animal breeding allowed
+# Outside zones: Limited resources
+
+# [plant_growth]
+#     # Farming zone
+#     [[plant_growth.rules]]
+#         enabled = true
+#         x_min = 0
+#         x_max = 2000
+#         z_min = 0
+#         z_max = 2000
+#         allow = true
+#     
+#     # Block farming outside zone
+#     [[plant_growth.rules]]
+#         enabled = true
+#         allow = false
+# 
+# [animal_breeding]
+#     # Ranching zone
+#     [[animal_breeding.rules]]
+#         enabled = true
+#         x_min = -2000
+#         x_max = 0
+#         z_min = -2000
+#         z_max = 0
+#         allow = true
+#     
+#     # Block breeding outside zone
+#     [[animal_breeding.rules]]
+#         enabled = true
+#         allow = false
+# 
+# [mineral_veins]
+#     # Mining zone (IE)
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         x_min = 3000
+#         x_max = 5000
+#         z_min = 3000
+#         z_max = 5000
+#         allow = true
+#     
+#     # Mining zone (Create)
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "create"
+#         x_min = 3000
+#         x_max = 5000
+#         z_min = 3000
+#         z_max = 5000
+#         allow = true
+#     
+#     # Block rare ores outside zone
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         vein_types = ["uranium", "gold", "silver"]
+#         allow = false
+
+# ==============================================================================
+# SCENARIO 3: Hardcore Survival Mode
+# ==============================================================================
+# Make survival significantly harder by restricting food sources
+# Players must explore and adapt to different biomes
+
+# [plant_growth]
+#     # Wheat only in plains
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:wheat"]
+#         biomes = ["minecraft:plains", "minecraft:sunflower_plains"]
+#         allow = true
+#     
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:wheat"]
+#         allow = false
+#     
+#     # Carrots only in forests
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:carrot"]
+#         biomes = ["minecraft:forest", "minecraft:birch_forest"]
+#         allow = true
+#     
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:carrot"]
+#         allow = false
+#     
+#     # Potatoes only in taiga
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:potato"]
+#         biomes = ["minecraft:taiga", "minecraft:old_growth_spruce_taiga"]
+#         allow = true
+#     
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:potato"]
+#         allow = false
+# 
+# [animal_breeding]
+#     # No breeding in cold biomes (too harsh)
+#     [[animal_breeding.rules]]
+#         enabled = true
+#         temperature_max = 0.0
+#         allow = false
+#     
+#     # No breeding in hot biomes (too harsh)
+#     [[animal_breeding.rules]]
+#         enabled = true
+#         temperature_min = 1.5
+#         allow = false
+
+# ==============================================================================
+# SCENARIO 4: Protected Spawn Area
+# ==============================================================================
+# Prevent resource gathering near spawn to preserve the area
+# Common for community servers with spawn towns
+
+# [plant_growth]
+#     [[plant_growth.rules]]
+#         enabled = true
+#         x_min = -500
+#         x_max = 500
+#         z_min = -500
+#         z_max = 500
+#         allow = false
+# 
+# [animal_breeding]
+#     [[animal_breeding.rules]]
+#         enabled = true
+#         x_min = -500
+#         x_max = 500
+#         z_min = -500
+#         z_max = 500
+#         allow = false
+# 
+# [mineral_veins]
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         x_min = -500
+#         x_max = 500
+#         z_min = -500
+#         z_max = 500
+#         allow = false
+#     
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "create"
+#         x_min = -500
+#         x_max = 500
+#         z_min = -500
+#         z_max = 500
+#         allow = false
+
+# ==============================================================================
+# SCENARIO 5: Altitude-Based Restrictions
+# ==============================================================================
+# Control resources based on height (Y-level)
+# Useful for skyblock or vertical progression
+
+# [plant_growth]
+#     # Surface crops only (Y 60-120)
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:wheat", "minecraft:carrot", "minecraft:potato"]
+#         y_min = 60
+#         y_max = 120
+#         allow = true
+#     
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:wheat", "minecraft:carrot", "minecraft:potato"]
+#         allow = false
+#     
+#     # Mushrooms only underground (Y < 50)
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:red_mushroom", "minecraft:brown_mushroom"]
+#         y_max = 50
+#         allow = true
+#     
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:red_mushroom", "minecraft:brown_mushroom"]
+#         allow = false
+# 
+# [animal_breeding]
+#     # Breeding only on surface
+#     [[animal_breeding.rules]]
+#         enabled = true
+#         y_max = 50
+#         allow = false
+
+# ==============================================================================
+# SCENARIO 6: Rare Resource Control
+# ==============================================================================
+# Make rare ores spawn only in specific, hard-to-reach locations
+# Great for economy servers
+
+# [mineral_veins]
+#     # Uranium only in badlands + far from spawn
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         vein_types = ["uranium"]
+#         biomes = ["minecraft:badlands", "minecraft:wooded_badlands"]
+#         x_min = 5000  # Far from spawn
+#         allow = true
+#     
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         vein_types = ["uranium"]
+#         allow = false
+#     
+#     # Gold only in mesa/badlands
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         vein_types = ["gold"]
+#         biomes = ["minecraft:badlands", "minecraft:eroded_badlands"]
+#         allow = true
+#     
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         vein_types = ["gold"]
+#         allow = false
+#     
+#     # Silver only in mountains
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         vein_types = ["silver"]
+#         biomes = ["minecraft:jagged_peaks", "minecraft:frozen_peaks", "minecraft:stony_peaks"]
+#         allow = true
+#     
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         vein_types = ["silver"]
+#         allow = false
+
+# ==============================================================================
+# SCENARIO 7: Seasonal/Temperature Farming
+# ==============================================================================
+# Restrict crops based on temperature to simulate seasons
+# Works well with season mods
+
+# [plant_growth]
+#     # Cold weather crops (temperature < 0.5)
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:potato", "minecraft:beetroot"]
+#         temperature_max = 0.5
+#         allow = true
+#     
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:potato", "minecraft:beetroot"]
+#         temperature_min = 0.5
+#         allow = false
+#     
+#     # Warm weather crops (temperature > 0.8)
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:melon", "minecraft:pumpkin"]
+#         temperature_min = 0.8
+#         allow = true
+#     
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:melon", "minecraft:pumpkin"]
+#         temperature_max = 0.8
+#         allow = false
+
+# ==============================================================================
+# SCENARIO 8: PvP Zone Restrictions
+# ==============================================================================
+# Create safe zones where resources are available and PvP zones where they're not
+# Encourages risk vs reward gameplay
+
+# [plant_growth]
+#     # Safe farming zone near spawn
+#     [[plant_growth.rules]]
+#         enabled = true
+#         x_min = -1000
+#         x_max = 1000
+#         z_min = -1000
+#         z_max = 1000
+#         allow = true
+#     
+#     # PvP zone: limited food
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:wheat", "minecraft:carrot", "minecraft:potato"]
+#         allow = false
+# 
+# [animal_breeding]
+#     # Safe breeding zone
+#     [[animal_breeding.rules]]
+#         enabled = true
+#         x_min = -1000
+#         x_max = 1000
+#         z_min = -1000
+#         z_max = 1000
+#         allow = true
+#     
+#     # PvP zone: no breeding
+#     [[animal_breeding.rules]]
+#         enabled = true
+#         allow = false
+
+# ==============================================================================
+# SCENARIO 9: Tech Progression (Mineral Veins)
+# ==============================================================================
+# Force players to explore and progress through tech tiers
+# Basic ores everywhere, advanced ores in specific locations
+
+# [mineral_veins]
+#     # Basic ores: anywhere
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         vein_types = ["copper", "iron"]
+#         allow = true
+#     
+#     # Advanced ores: mountains only
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         vein_types = ["silver", "lead", "nickel"]
+#         biomes = ["minecraft:jagged_peaks", "minecraft:frozen_peaks", "minecraft:stony_peaks"]
+#         allow = true
+#     
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         vein_types = ["silver", "lead", "nickel"]
+#         allow = false
+#     
+#     # End-game ore: specific coordinates far from spawn
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         vein_types = ["uranium"]
+#         x_min = 10000
+#         x_max = 15000
+#         z_min = 10000
+#         z_max = 15000
+#         allow = true
+#     
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         integration = "immersive_engineering"
+#         vein_types = ["uranium"]
+#         allow = false
+
+# ==============================================================================
+# SCENARIO 10: Simple Biome Restrictions
+# ==============================================================================
+# Easy to understand rules for beginners
+# Just restrict incompatible crop/biome combinations
+
+# [plant_growth]
+#     # No crops in desert (too hot)
+#     [[plant_growth.rules]]
+#         enabled = true
+#         biomes = ["minecraft:desert"]
+#         crop_types = ["minecraft:wheat", "minecraft:carrot", "minecraft:potato"]
+#         allow = false
+#     
+#     # No crops in frozen biomes (too cold)
+#     [[plant_growth.rules]]
+#         enabled = true
+#         biomes = ["minecraft:snowy_plains", "minecraft:ice_spikes", "minecraft:frozen_peaks"]
+#         crop_types = ["minecraft:wheat", "minecraft:carrot", "minecraft:potato"]
+#         allow = false
+#     
+#     # No water crops in nether (using deprecated single dimension field)
+#     [[plant_growth.rules]]
+#         enabled = true
+#         dimension = "minecraft:the_nether"
+#         crop_types = ["minecraft:wheat", "minecraft:carrot", "minecraft:potato", "minecraft:beetroot"]
+#         allow = false
+
+# ==============================================================================
+# SCENARIO 11: Dimension Control
+# ==============================================================================
+# Control which dimensions rules apply to using whitelists and blacklists
+
+# [plant_growth]
+#     # Only allow mushrooms in the Nether (whitelist)
+#     [[plant_growth.rules]]
+#         enabled = true
+#         dimensions = ["minecraft:the_nether"]
+#         crop_types = ["minecraft:red_mushroom", "minecraft:brown_mushroom"]
+#         allow = true
+#     
+#     # Block mushrooms in all other dimensions
+#     [[plant_growth.rules]]
+#         enabled = true
+#         crop_types = ["minecraft:red_mushroom", "minecraft:brown_mushroom"]
+#         allow = false
+#     
+#     # Allow chorus fruit only in the End (whitelist)
+#     [[plant_growth.rules]]
+#         enabled = true
+#         dimensions = ["minecraft:the_end"]
+#         crop_types = ["minecraft:chorus_flower"]
+#         allow = true
+#     
+#     # Block regular crops in the Nether (blacklist approach)
+#     [[plant_growth.rules]]
+#         enabled = true
+#         dimensions_blacklist = ["minecraft:the_nether"]
+#         crop_types = ["minecraft:wheat", "minecraft:carrot", "minecraft:potato"]
+#         allow = true
+#     
+#     # Allow all crops except in dimensions blacklisted above
+#     [[plant_growth.rules]]
+#         enabled = true
+#         dimensions = ["minecraft:the_nether"]
+#         crop_types = ["minecraft:wheat", "minecraft:carrot", "minecraft:potato"]
+#         allow = false
+
+# [animal_breeding]
+#     # No passive mob breeding in the Nether or End (blacklist)
+#     [[animal_breeding.rules]]
+#         enabled = true
+#         dimensions_blacklist = ["minecraft:the_nether", "minecraft:the_end"]
+#         animal_types = ["minecraft:cow", "minecraft:sheep", "minecraft:pig", "minecraft:chicken"]
+#         allow = false
+#     
+#     # Only allow strider breeding in the Nether (whitelist)
+#     [[animal_breeding.rules]]
+#         enabled = true
+#         dimensions = ["minecraft:the_nether"]
+#         animal_types = ["minecraft:strider"]
+#         allow = true
+
+# [mineral_veins]
+#     # No mineral veins in the Nether (blacklist)
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         dimensions_blacklist = ["minecraft:the_nether"]
+#         integration = "immersive_engineering"
+#         allow = false
+#     
+#     # Gold only in the Nether (whitelist)
+#     [[mineral_veins.rules]]
+#         enabled = true
+#         dimensions = ["minecraft:the_nether"]
+#         vein_types = ["gold"]
+#         integration = "immersive_engineering"
+#         allow = true
+
+# ==============================================================================
+# TIPS FOR CREATING YOUR OWN CONFIGURATION
+# ==============================================================================
+#
+# 1. Start Simple: Begin with one or two rules, test them, then add more
+#
+# 2. Use /territorial commands to test:
+#    - /territorial check      (see what rules apply at your location)
+#    - /territorial reload     (reload config without restart)
+#    - /territorial rules all  (list all loaded rules)
+#    - /territorial debug on   (see detailed rule evaluation)
+#
+# 3. Rule Precedence: Remember that more specific rules override general ones
+#    Coordinate > Temperature > Biome > Global
+#
+# 4. Testing: Copy a test config from test_configs/ directory to try it out
+#
+# 5. Documentation: See USER_GUIDE.md for detailed explanations
+#
+# 6. Performance: The mod handles 100+ rules efficiently, don't worry about
+#    having many rules if needed
+#
+# ==============================================================================
