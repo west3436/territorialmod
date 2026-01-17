@@ -1,4 +1,4 @@
-# Territorial Configuration Wiki
+# Territorial Mod
 
 This page explains how to configure the Territorial mod for Minecraft 1.20.1.
 
