@@ -129,7 +129,7 @@ dependencies {
 	
     // Jade integration for tooltip display of breeding/growth status
     // Compile-only since Jade is optional - users who want tooltips should install Jade separately
-    modCompileOnly "maven.modrinth:jade:11.6.3+forge"
+    modCompileOnly "maven.modrinth:jade:11.7.1"
 
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
