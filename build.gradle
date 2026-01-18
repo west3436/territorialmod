@@ -19,6 +19,11 @@ group = mod_group_id
 
 repositories {
     mavenLocal()
+    // Jade mod repository for optional tooltip integration
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+    }
 }
 
 base {
@@ -121,7 +126,11 @@ dependencies {
 	
     // Dynmap-Forge integration is implemented using reflection to avoid compile-time dependency
     // Users who want Dynmap visualization should install Dynmap-Forge separately
-    
+	
+    // Jade integration for tooltip display of breeding/growth status
+    // Compile-only since Jade is optional - users who want tooltips should install Jade separately
+    modCompileOnly "maven.modrinth:jade:11.6.3+forge"
+
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // modCompileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"

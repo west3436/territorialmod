@@ -1,3 +1,9 @@
 {
-  "item.territorial.farmers_almanac": "Farmer's Almanac"
+  "item.territorial.farmers_almanac": "Farmer's Almanac",
+  "territorial.jade.growth_allowed": "Growth: Allowed",
+  "territorial.jade.growth_blocked": "Growth: Blocked",
+  "territorial.jade.breeding_allowed": "Breeding: Allowed",
+  "territorial.jade.breeding_blocked": "Breeding: Blocked",
+  "config.jade.plugin_territorial.plant_growth": "Plant Growth Status",
+  "config.jade.plugin_territorial.animal_breeding": "Animal Breeding Status"
 }

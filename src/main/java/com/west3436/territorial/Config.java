@@ -61,6 +61,10 @@ public class Config
             .comment("Whether to enable Dynmap integration for visualizing rules on the map (requires Dynmap-Forge)")
             .define("enableDynmapIntegration", true);
 
+    private static final ForgeConfigSpec.BooleanValue ENABLE_JADE_INTEGRATION = BUILDER
+            .comment("Whether to enable Jade integration for showing breeding/growth status in tooltips (requires Jade)")
+            .define("enableJadeIntegration", true);
+
     private static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
             .comment("Enable debug logging for rule evaluation")
             .define("debugLogging", false);
@@ -77,6 +81,7 @@ public class Config
     public static boolean enablePlantGrowthControl;
     public static boolean enableAnimalBreedingControl;
     public static boolean enableDynmapIntegration;
+    public static boolean enableJadeIntegration;
     public static boolean debugLogging;
     public static boolean giveAlmanacOnFirstJoin;
 
@@ -101,6 +106,7 @@ public class Config
         enablePlantGrowthControl = ENABLE_PLANT_GROWTH_CONTROL.get();
         enableAnimalBreedingControl = ENABLE_ANIMAL_BREEDING_CONTROL.get();
         enableDynmapIntegration = ENABLE_DYNMAP_INTEGRATION.get();
+        enableJadeIntegration = ENABLE_JADE_INTEGRATION.get();
         debugLogging = DEBUG_LOGGING.get();
         giveAlmanacOnFirstJoin = GIVE_ALMANAC_ON_FIRST_JOIN.get();
     }
