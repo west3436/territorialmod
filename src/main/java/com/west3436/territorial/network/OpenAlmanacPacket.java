@@ -1,11 +1,9 @@
 package com.west3436.territorial.network;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.inventory.BookViewScreen;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
@@ -32,14 +30,7 @@ public class OpenAlmanacPacket {
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
-            // Create the book ItemStack from the NBT data
-            ItemStack bookStack = new ItemStack(Items.WRITTEN_BOOK);
-            if (bookNbt != null) {
-                bookStack.setTag(bookNbt);
-            }
-
-            // Open the book screen on the client
-            Minecraft.getInstance().setScreen(new BookViewScreen(new BookViewScreen.WrittenBookAccess(bookStack)));
+            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientPacketHandler.openAlmanacScreen(bookNbt));
         });
         ctx.get().setPacketHandled(true);
     }
