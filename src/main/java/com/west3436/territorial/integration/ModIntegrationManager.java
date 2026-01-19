@@ -5,7 +5,7 @@ import net.minecraftforge.fml.ModList;
 import org.slf4j.Logger;
 
 /**
- * Manages optional mod integrations for map visualization.
+ * Manages optional mod integrations for map visualization and tooltips.
  * Detects which mods are loaded and initializes appropriate integrations.
  */
 public class ModIntegrationManager {
@@ -13,12 +13,14 @@ public class ModIntegrationManager {
 
     // Mod IDs for integration
     private static final String DYNMAP_MOD_ID = "dynmap";
+    private static final String JADE_MOD_ID = "jade";
 
     // Integration instances
     private static DynmapIntegration dynmapIntegration = null;
 
     // Integration status
     private static boolean dynmapAvailable = false;
+    private static boolean jadeAvailable = false;
     private static boolean initialized = false;
 
     /**
@@ -48,6 +50,16 @@ public class ModIntegrationManager {
             LOGGER.info("Dynmap not detected, skipping integration");
         }
 
+        // Check for Jade
+        // Note: Jade integration is handled via the @WailaPlugin annotation
+        // The plugin is automatically discovered and loaded by Jade
+        if (ModList.get().isLoaded(JADE_MOD_ID)) {
+            jadeAvailable = true;
+            LOGGER.info("Jade detected - Territorial tooltip integration will be active");
+        } else {
+            LOGGER.info("Jade not detected, skipping integration");
+        }
+
         initialized = true;
         logIntegrationStatus();
     }
@@ -57,7 +69,8 @@ public class ModIntegrationManager {
      */
     private static void logIntegrationStatus() {
         StringBuilder status = new StringBuilder("Territorial integrations: ");
-        status.append("Dynmap [").append(dynmapAvailable ? "ACTIVE" : "INACTIVE").append("]");
+        status.append("Dynmap [").append(dynmapAvailable ? "ACTIVE" : "INACTIVE").append("], ");
+        status.append("Jade [").append(jadeAvailable ? "ACTIVE" : "INACTIVE").append("]");
         LOGGER.info(status.toString());
     }
 
@@ -68,6 +81,15 @@ public class ModIntegrationManager {
      */
     public static boolean isDynmapAvailable() {
         return dynmapAvailable;
+    }
+
+    /**
+     * Checks if Jade integration is available.
+     *
+     * @return true if Jade is loaded and integration is active
+     */
+    public static boolean isJadeAvailable() {
+        return jadeAvailable;
     }
 
     /**
